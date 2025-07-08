@@ -48,8 +48,8 @@ var versionTpl string
 // -----
 
 type Options struct {
-	input, output      string
-	doUsage, doVersion bool
+	input, output          string
+	showUsage, showVersion bool
 }
 
 type Split struct {
@@ -61,12 +61,12 @@ type Split struct {
 
 func init() {
 	prog = usage.Prog(flag.CommandLine)
-	flag.Usage = doUsage
+	flag.Usage = showUsage
 	flag.CommandLine.SetOutput(os.Stdout)
 
 	flag.StringVarP(&opts.output, "out", "o", opts.output, "")
-	flag.BoolVarP(&opts.doUsage, "help", "h", false, "")
-	flag.BoolVarP(&opts.doVersion, "version", "v", false, "")
+	flag.BoolVarP(&opts.showUsage, "help", "h", false, "")
+	flag.BoolVarP(&opts.showVersion, "version", "v", false, "")
 
 	flag.Lookup("out").Usage = "Output file `PATH`"
 	flag.Lookup("help").Usage = "Show help information"
@@ -77,11 +77,11 @@ func main() {
 	flag.Parse()
 
 	switch {
-	case opts.doUsage:
-		doUsage()
+	case opts.showUsage:
+		showUsage()
 		return
-	case opts.doVersion:
-		doVersion()
+	case opts.showVersion:
+		showVersion()
 		return
 	}
 
@@ -100,13 +100,13 @@ func main() {
 	}
 }
 
-func doUsage() {
+func showUsage() {
 	if err := prog.PrintUsage(usageTpl, info); err != nil {
 		exit("print usage", err)
 	}
 }
 
-func doVersion() {
+func showVersion() {
 	if err := prog.PrintUsage(versionTpl, info); err != nil {
 		exit("print version", err)
 	}
