@@ -1,0 +1,15 @@
+{{.Base}} parses frontmatter from a source text file
+
+Usage: {{.Name}} [-o OUTPUT] [INPUT]
+
+Parses any YAML frontmatter from INPUT file, converts it
+to JSON and outputs it to OUTPUT. Adds the JSON property
+"content", which contains the actual non-frontmatter
+content from INPUT.
+
+If either INPUT or OUTPUT is omitted, or if either of
+them is "-", reads from standard input and output.
+
+Options:
+{{.Usage}}
+Report bugs to <{{.Contact}}>.
