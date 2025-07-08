@@ -1,0 +1,3 @@
+{{.Base}} {{.Version}}
+Copyright (C) 2025
+Written by {{.Author}}

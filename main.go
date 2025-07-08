@@ -27,6 +27,12 @@ var (
 		output: "-",
 	}
 
+	info = usage.Data{
+		"Author":  "Zaim B.",
+		"Contact": "zbrd@duck.com",
+		"Version": version,
+	}
+
 	matterDelim = []byte("---\n")
 	matterMark  = matterDelim[0:3]
 	version     = "v0.0.0-unpublished"
@@ -34,6 +40,9 @@ var (
 
 //go:embed usage.txt
 var usageTpl string
+
+//go:embed version.txt
+var versionTpl string
 
 // Types
 // -----
@@ -92,22 +101,15 @@ func main() {
 }
 
 func doUsage() {
-	data := usage.Data{
-		"Contact": "zbrd@duck.com",
-	}
-	if err := prog.PrintUsage(usageTpl, data); err != nil {
+	if err := prog.PrintUsage(usageTpl, info); err != nil {
 		exit("print usage", err)
 	}
 }
 
-func doVersion() int {
-	fmt.Fprintf(
-		flag.CommandLine.Output(),
-		"%s %s\n",
-		prog.Base(),
-		version,
-	)
-	return 0
+func doVersion() {
+	if err := prog.PrintUsage(versionTpl, info); err != nil {
+		exit("print version", err)
+	}
 }
 
 // Funcs
