@@ -51,6 +51,8 @@ type Split struct {
 func init() {
 	prog = usage.Prog(flag.CommandLine)
 	flag.Usage = func() { doUsage() }
+	flag.CommandLine.SetOutput(os.Stdout)
+
 	flag.StringVarP(&opts.output, "out", "o", opts.output, "")
 	flag.Lookup("out").Usage = "Output file `PATH`"
 }
