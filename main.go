@@ -29,6 +29,7 @@ var (
 
 	matterDelim = []byte("---\n")
 	matterMark  = matterDelim[0:3]
+	version     = "v0.0.0-unpublished"
 )
 
 //go:embed usage.txt
@@ -38,7 +39,8 @@ var usageTpl string
 // -----
 
 type Options struct {
-	input, output string
+	input, output      string
+	doUsage, doVersion bool
 }
 
 type Split struct {
@@ -50,15 +52,29 @@ type Split struct {
 
 func init() {
 	prog = usage.Prog(flag.CommandLine)
-	flag.Usage = func() { doUsage() }
+	flag.Usage = doUsage
 	flag.CommandLine.SetOutput(os.Stdout)
 
 	flag.StringVarP(&opts.output, "out", "o", opts.output, "")
+	flag.BoolVarP(&opts.doUsage, "help", "h", false, "")
+	flag.BoolVarP(&opts.doVersion, "version", "v", false, "")
+
 	flag.Lookup("out").Usage = "Output file `PATH`"
+	flag.Lookup("help").Usage = "Show help information"
+	flag.Lookup("version").Usage = "Show version information"
 }
 
 func main() {
 	flag.Parse()
+
+	switch {
+	case opts.doUsage:
+		doUsage()
+		return
+	case opts.doVersion:
+		doVersion()
+		return
+	}
 
 	if flag.NArg() > 0 {
 		opts.input = flag.Arg(0)
@@ -82,6 +98,16 @@ func doUsage() {
 	if err := prog.PrintUsage(usageTpl, data); err != nil {
 		exit("print usage", err)
 	}
+}
+
+func doVersion() int {
+	fmt.Fprintf(
+		flag.CommandLine.Output(),
+		"%s %s\n",
+		prog.Base(),
+		version,
+	)
+	return 0
 }
 
 // Funcs
