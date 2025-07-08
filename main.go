@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"iter"
@@ -13,6 +12,7 @@ import (
 	_ "embed"
 
 	"github.com/goccy/go-yaml"
+	flag "github.com/spf13/pflag"
 	"github.com/zbrd/usage"
 )
 
@@ -51,7 +51,8 @@ type Split struct {
 func init() {
 	prog = usage.Prog(flag.CommandLine)
 	flag.Usage = func() { doUsage() }
-	flag.StringVar(&opts.output, "o", opts.output, "Output file path")
+	flag.StringVarP(&opts.output, "out", "o", opts.output, "")
+	flag.Lookup("out").Usage = "Output file `PATH`"
 }
 
 func main() {
