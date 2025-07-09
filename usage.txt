@@ -1,4 +1,4 @@
-{{.Base}} parses frontmatter from a source text file
+Parses frontmatter from a source text file.
 
 Usage: {{.Name}} [-o OUTPUT] [INPUT]
 
