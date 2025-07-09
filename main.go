@@ -20,11 +20,12 @@ import (
 // -------
 
 var (
-	prog usage.Program
+	prog    usage.Program
+	version string
 
 	opts = &Options{
-		input:  "-",
-		output: "-",
+		Input:  "-",
+		Output: "-",
 	}
 
 	info = usage.Data{
@@ -35,7 +36,6 @@ var (
 
 	matterDelim = []byte("---\n")
 	matterMark  = matterDelim[0:3]
-	version     = "v0.0.0-unpublished"
 )
 
 //go:embed usage.txt
@@ -48,12 +48,43 @@ var versionTpl string
 // -----
 
 type Options struct {
-	input, output          string
-	showUsage, showVersion bool
+	Input       string
+	Output      string
+	ShowUsage   bool
+	ShowVersion bool
+}
+
+func (o Options) Reader() (r io.Reader, err error) {
+	if opts.Input == "-" {
+		r = os.Stdin
+	} else {
+		r, err = os.Open(o.Input)
+	}
+	return
+}
+
+func (o Options) Writer() (w io.WriteCloser, err error) {
+	if opts.Output == "-" {
+		w = os.Stdout
+	} else {
+		w, err = os.OpenFile(o.Output, os.O_WRONLY|os.O_CREATE, 0644)
+	}
+	return
+}
+
+type Output struct {
+	Meta    map[string]any `json:"meta"`
+	Path    string         `json:"path"`
+	Content string         `json:"content"`
+}
+
+func (o Output) Set(s Split) Output {
+	o.Content = string(s.Content)
+	return o
 }
 
 type Split struct {
-	matter, content []byte
+	Meta, Content []byte
 }
 
 // Main
@@ -64,9 +95,9 @@ func init() {
 	flag.Usage = showUsage
 	flag.CommandLine.SetOutput(os.Stdout)
 
-	flag.StringVarP(&opts.output, "out", "o", opts.output, "")
-	flag.BoolVarP(&opts.showUsage, "help", "h", false, "")
-	flag.BoolVarP(&opts.showVersion, "version", "v", false, "")
+	flag.StringVarP(&opts.Output, "out", "o", opts.Output, "")
+	flag.BoolVarP(&opts.ShowUsage, "help", "h", false, "")
+	flag.BoolVarP(&opts.ShowVersion, "version", "v", false, "")
 
 	flag.Lookup("out").Usage = "Output file `PATH`"
 	flag.Lookup("help").Usage = "Show help information"
@@ -77,26 +108,24 @@ func main() {
 	flag.Parse()
 
 	switch {
-	case opts.showUsage:
+	case opts.ShowUsage:
 		showUsage()
 		return
-	case opts.showVersion:
+	case opts.ShowVersion:
 		showVersion()
 		return
 	}
 
 	if flag.NArg() > 0 {
-		opts.input = flag.Arg(0)
+		opts.Input = flag.Arg(0)
 	}
 
-	if in, err := openInput(); err != nil {
+	if r, err := opts.Reader(); err != nil {
 		exit("open input", err)
-	} else if split, err := splitMatter(in); err != nil {
-		exit("split matter", err)
-	} else if meta, err := parseYAML(split.matter); err != nil {
-		exit("parse YAML matter", err)
-	} else if err := writeOutput(meta, split.content); err != nil {
-		exit("output result", err)
+	} else if w, err := opts.Writer(); err != nil {
+		exit("open output", err)
+	} else if err := parseFront(opts.Input, r, w); err != nil {
+		exit("parse frontmatter", err)
 	}
 }
 
@@ -120,14 +149,6 @@ func exit(op string, err error) {
 	os.Exit(1)
 }
 
-func openInput() (io.Reader, error) {
-	if opts.input == "-" {
-		return os.Stdin, nil
-	} else {
-		return os.Open(opts.input)
-	}
-}
-
 func splitMatter(r io.Reader) (Split, error) {
 	var (
 		split        Split
@@ -139,17 +160,17 @@ func splitMatter(r io.Reader) (Split, error) {
 		// file contains valid frontmatter,
 		// read it and store in split.matter
 		for line := range matterLines(buff) {
-			split.matter = append(split.matter, line...)
+			split.Meta = append(split.Meta, line...)
 		}
 	} else {
 		// file has no valid frontmatter,
 		// re-consume assumed 'magic' bytes into split.content
-		split.content = append(split.content, magic...)
+		split.Content = append(split.Content, magic...)
 	}
 
 	// read the rest of the file into split.content
 	all, err := io.ReadAll(buff)
-	split.content = append(split.content, all...)
+	split.Content = append(split.Content, all...)
 	return split, err
 }
 
@@ -202,11 +223,31 @@ func matterLines(b *bufio.Reader) iter.Seq[[]byte] {
 	}
 }
 
+func parseFront(path string, in io.Reader, out io.Writer) error {
+	var (
+		err error
+		op  Output
+		sm  Split
+	)
+
+	op.Path = path
+
+	if sm, err = splitMatter(in); err != nil {
+		return fmt.Errorf("Error splitting frontmatter: %w", err)
+	} else if op.Meta, err = parseYAML(sm.Meta); err != nil {
+		return fmt.Errorf("Error parsing YAML: %w", err)
+	} else if err := writeOutput(out, op.Set(sm)); err != nil {
+		return err
+	} else {
+		return nil
+	}
+}
+
 func parseYAML(b []byte) (map[string]any, error) {
 	var meta map[string]any
 
 	if j, err := yaml.YAMLToJSON(b); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error YAML to JSON: %w", err)
 	} else if err := json.Unmarshal(j, &meta); err != nil {
 		return nil, err
 	} else {
@@ -214,27 +255,12 @@ func parseYAML(b []byte) (map[string]any, error) {
 	}
 }
 
-func openOutput() (io.WriteCloser, error) {
-	if opts.output == "-" {
-		return os.Stdout, nil
-	} else {
-		return os.OpenFile(opts.output, os.O_WRONLY|os.O_CREATE, 0644)
-	}
-}
-
-func writeOutput(meta map[string]any, content []byte) error {
-	outmap := map[string]any{
-		"path":    opts.input,
-		"meta":    meta,
-		"content": string(content),
-	}
-
-	if out, err := openOutput(); err != nil {
-		return err
-	} else if data, err := json.Marshal(outmap); err != nil {
+func writeOutput(out io.Writer, output Output) error {
+	if data, err := json.Marshal(output); err != nil {
+		return fmt.Errorf("Error marshal output: %w", err)
+	} else if _, err := out.Write(data); err != nil {
 		return err
 	} else {
-		out.Write(data)
 		return nil
 	}
 }
