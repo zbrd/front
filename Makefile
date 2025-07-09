@@ -8,6 +8,7 @@ GOBUILD = $(GO) build
 GOLIST  = $(GO) list
 GOTEST  = $(GO) test
 H2M     = help2man
+INSTALL = install
 SVU     = svu
 
 # Target
@@ -49,11 +50,11 @@ install: install-bin install-man
 
 install-bin: $(BIN)
 	@mkdir -p $(PREFIX)/bin
-	install -Dm755 -- $< $(PREFIX)/bin/$(<F)
+	$(INSTALL) -Dm755 -- $< $(PREFIX)/bin/$(<F)
 
 install-man: $(MAN)
 	@mkdir -p $(PREFIX)/share/man/man1
-	install -Dm644 -- $< $(PREFIX)/share/man/man1/$(<F)
+	$(INSTALL) -Dm644 -- $< $(PREFIX)/share/man/man1/$(<F)
 
 $(BIN): $(FILES)
 	@mkdir -p $(@D)
