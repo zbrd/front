@@ -23,28 +23,25 @@ MAN   = $(DEST)/$(NAME).1
 DESC != head -n1 usage.txt | sed 's/\.$$//'
 
 # Build/test flags
-VERSION   != $(SVU) current 2>/dev/null
-TESTFLAGS  =
-BUILDFLAGS = -trimpath
-LDFLAGS    = -X 'main.version=$(VERSION)'
+VERSION    != $(SVU) current 2>/dev/null
+TESTFLAGS   = -v
+LDFLAGS     = -X 'main.version=$(VERSION)'
+BUILDFLAGS  = -trimpath $(if $(LDFLAGS),-ldflags "$(LDFLAGS)")
 
 ifeq ($(VERSION),)
 	VERSION = v0.0.0
 endif
+
 ifeq ($(VERSION),v0.0.0)
 	VERSION := $(VERSION)-dev
 endif
 
 -include config.mk
 
-GOTEST  := $(GOTEST) $(TESTFLAGS)
-GOBUILD := $(GOBUILD) $(BUILDFLAGS) \
-		   $(if $(LDFLAGS),-ldflags "$(LDFLAGS)")
-
 all: $(BIN) $(MAN)
 
 test:
-	$(GOTEST)
+	$(GOTEST) $(TESTFLAGS)
 
 install: install-bin install-man
 
@@ -58,7 +55,7 @@ install-man: $(MAN)
 
 $(BIN): $(FILES)
 	@mkdir -p $(@D)
-	$(GOBUILD) -o $@
+	$(GOBUILD) $(BUILDFLAGS) -o $@
 
 $(MAN): $(BIN)
 	@mkdir -p $(@D)
