@@ -44,17 +44,17 @@ func TestSplitMatter(t *testing.T) {
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("Test_%d", i), func(t *testing.T) {
 			r := strings.NewReader(tt.input)
-			s, err := splitMatter(r)
+			m, c, err := splitMatter(r)
 
 			if err != nil {
 				t.Errorf("err != nil: %#v", err)
 			}
 
-			if sm := string(s.Meta); sm != tt.matter {
+			if sm := string(m); sm != tt.matter {
 				t.Errorf("matter != %#v: %#v", tt.matter, sm)
 			}
 
-			if sm := string(s.Content); sm != tt.content {
+			if sm := string(c); sm != tt.content {
 				t.Errorf("content != %#v: %#v", tt.content, sm)
 			}
 		})

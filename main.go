@@ -78,13 +78,9 @@ type Output struct {
 	Content string         `json:"content"`
 }
 
-func (o Output) Set(s Split) Output {
-	o.Content = string(s.Content)
+func (o Output) SetContent(c []byte) Output {
+	o.Content = string(c)
 	return o
-}
-
-type Split struct {
-	Meta, Content []byte
 }
 
 // Main
@@ -149,29 +145,29 @@ func exit(op string, err error) {
 	os.Exit(1)
 }
 
-func splitMatter(r io.Reader) (Split, error) {
+func splitMatter(r io.Reader) ([]byte, []byte, error) {
 	var (
-		split        Split
-		buff         = bufio.NewReader(r)
-		magic, front = readMagic(buff)
+		matter, content []byte
+		buff            = bufio.NewReader(r)
+		magic, front    = readMagic(buff)
 	)
 
 	if front {
 		// file contains valid frontmatter,
 		// read it and store in split.matter
 		for line := range matterLines(buff) {
-			split.Meta = append(split.Meta, line...)
+			matter = append(matter, line...)
 		}
 	} else {
 		// file has no valid frontmatter,
 		// re-consume assumed 'magic' bytes into split.content
-		split.Content = append(split.Content, magic...)
+		content = append(content, magic...)
 	}
 
 	// read the rest of the file into split.content
 	all, err := io.ReadAll(buff)
-	split.Content = append(split.Content, all...)
-	return split, err
+	content = append(content, all...)
+	return matter, content, err
 }
 
 func readMagic(b *bufio.Reader) ([]byte, bool) {
@@ -225,18 +221,18 @@ func matterLines(b *bufio.Reader) iter.Seq[[]byte] {
 
 func parseFront(path string, in io.Reader, out io.Writer) error {
 	var (
-		err error
-		op  Output
-		sm  Split
+		err  error
+		op   Output
+		m, c []byte
 	)
 
 	op.Path = path
 
-	if sm, err = splitMatter(in); err != nil {
+	if m, c, err = splitMatter(in); err != nil {
 		return fmt.Errorf("Error splitting frontmatter: %w", err)
-	} else if op.Meta, err = parseYAML(sm.Meta); err != nil {
+	} else if op.Meta, err = parseYAML(m); err != nil {
 		return fmt.Errorf("Error parsing YAML: %w", err)
-	} else if err := writeOutput(out, op.Set(sm)); err != nil {
+	} else if err := writeOutput(out, op.SetContent(c)); err != nil {
 		return err
 	} else {
 		return nil
