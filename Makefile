@@ -12,14 +12,15 @@ INSTALL = install
 SVU     = svu
 
 # Target
-LISTTPL = {{join .GoFiles " "}} {{join .EmbedFiles " "}}
-FILES  != $(GOLIST) -f '$(LISTTPL)'
-IMPORT != $(GOLIST) -f '{{.ImportPath}}'
-NAME    = $(notdir $(IMPORT))
-BIN     = $(DEST)/$(NAME)
+LISTTPL  = {{range .GoFiles}}{{$$.Dir}}/{{.}} {{end}}
+LISTTPL += {{range .EmbedFiles}}{{$$.Dir}}/{{.}} {{end}}
+FILES   != $(GOLIST) -f '$(LISTTPL)' ./...
+IMPORT  != $(GOLIST) -f '{{.ImportPath}}' ./...
+NAME     = $(notdir $(IMPORT))
+BIN      = $(addprefix $(DEST)/,$(NAME))
 
 # Docs
-MAN   = $(DEST)/$(NAME).1
+MAN   = $(addsuffix .1,$(BIN))
 DESC != head -n1 usage.txt | sed 's/\.$$//'
 
 # Build/test flags
@@ -47,15 +48,15 @@ install: install-bin install-man
 
 install-bin: $(BIN)
 	@mkdir -p $(PREFIX)/bin
-	$(INSTALL) -Dm755 -- $< $(PREFIX)/bin/$(<F)
+	$(INSTALL) -m755 -Dt $(PREFIX)/bin -- $^
 
 install-man: $(MAN)
 	@mkdir -p $(PREFIX)/share/man/man1
-	$(INSTALL) -Dm644 -- $< $(PREFIX)/share/man/man1/$(<F)
+	$(INSTALL) -m644 -Dt $(PREFIX)/share/man/man1 -- $^
 
-$(BIN): $(FILES)
+$(BIN) &: $(FILES)
 	@mkdir -p $(@D)
-	$(GOBUILD) $(BUILDFLAGS) -o $@
+	$(GOBUILD) $(BUILDFLAGS) -o $(@D) ./...
 
 $(MAN): $(BIN)
 	@mkdir -p $(@D)
