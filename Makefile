@@ -1,68 +1,71 @@
+.DEFAULT_GOAL := all
+
 # Config
 DEST   = out
 PREFIX = /usr/local
+VERVAR = main.version
+SRCS   = Go Embed
 
 # Commands
+GIT     = git
 GO      = go
 GOBUILD = $(GO) build
 GOLIST  = $(GO) list
+GOLF    = $(GOLIST) -f
 GOTEST  = $(GO) test
-H2M     = help2man
 INSTALL = install
-SVU     = svu
+H2M     = help2man
 
-# Target
-LISTTPL  = {{range .GoFiles}}{{$$.Dir}}/{{.}} {{end}}
-LISTTPL += {{range .EmbedFiles}}{{$$.Dir}}/{{.}} {{end}}
-FILES   != $(GOLIST) -f '$(LISTTPL)' ./...
-IMPORT  != $(GOLIST) -f '{{.ImportPath}}' ./...
-NAME     = $(notdir $(IMPORT))
-BIN      = $(addprefix $(DEST)/,$(NAME))
-
-# Docs
-MAN   = $(addsuffix .1,$(BIN))
-DESC != head -n1 usage.txt | sed 's/\.$$//'
+# Main packages
+PKGS != $(GOLF) '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./...
+BINS  = $(addprefix $(DEST)/,$(notdir $(PKGS)))
+MANS  = $(addsuffix .1,$(BINS))
 
 # Build/test flags
-VERSION    != $(SVU) current 2>/dev/null
-TESTFLAGS   = -v
-LDFLAGS     = -X 'main.version=$(VERSION)'
+VERSION    != $(GIT) tag --sort=-v:refname 2>/dev/null | head -n1
+LDFLAGS     = $(if $(VERSION),-X '$(VERVAR)=$(VERSION)')
 BUILDFLAGS  = -trimpath $(if $(LDFLAGS),-ldflags "$(LDFLAGS)")
+TESTFLAGS   = -v
 
-ifeq ($(VERSION),)
-	VERSION = v0.0.0
-endif
+# Functions
+getrange = {{range .$(1)Files}}{{$$.Dir}}/{{.}} {{end}}
+filesfmt = $(foreach t,$(SRCS),$(call getrange,$(t)))
+getpreqs = $(shell $(GOLF) '$(filesfmt)' $(1))
+getdir   = $(shell $(GOLF) '{{.Dir}}' $(1))
+getusage = $(shell test -f $(1) && head -n1 $(1) \
+		   | sed -e 's/^[A-Z]/\L&/' -e 's/\.$$//')
 
-ifeq ($(VERSION),v0.0.0)
-	VERSION := $(VERSION)-dev
-endif
+# Rule generator
+define mkpkg =
+$(1)_USAGE = $(call getusage,$(call getdir,$(2))/usage.txt)
+
+$$(DEST)/$(1): $(call getpreqs,$(2))
+	@mkdir -p $$(@D)
+	$$(GOBUILD) $$(BUILDFLAGS) -o $$@ $(2)
+
+$$(DEST)/$(1).1: USAGE ?= $$($(1)_USAGE)
+$$(DEST)/$(1).1: $(call getpreqs,$(2))
+	@mkdir -p $$(@D)
+	$$(H2M) --output=$$@ --name='$$(USAGE)' $$(DEST)/$(1)
+endef
 
 -include config.mk
 
-all: $(BIN) $(MAN)
+all: $(BINS) $(MANS)
 
 test:
 	$(GOTEST) $(TESTFLAGS)
 
-install: install-bin install-man
+install: $(BINS) $(MANS)
+	$(INSTALL) -Dm755 $(BINS) $(PREFIX)/bin/
+	$(INSTALL) -Dm644 $(MANS) $(PREFIX)/share/man/man1/
 
-install-bin: $(BIN)
-	@mkdir -p $(PREFIX)/bin
-	$(INSTALL) -m755 -Dt $(PREFIX)/bin -- $^
+clean:
+	-rm $(BINS)
 
-install-man: $(MAN)
-	@mkdir -p $(PREFIX)/share/man/man1
-	$(INSTALL) -m644 -Dt $(PREFIX)/share/man/man1 -- $^
-
-$(BIN) &: $(FILES)
-	@mkdir -p $(@D)
-	$(GOBUILD) $(BUILDFLAGS) -o $(@D) ./...
-
-$(MAN): $(BIN)
-	@mkdir -p $(@D)
-	$(H2M) --output=$@ --name="$(DESC)" $<
+$(foreach p,$(PKGS),$(eval $(call mkpkg,$(notdir $(p)),$(p))))
 
 show-%:
 	@echo '$* = $($*)'
 
-.PHONY: all test install install-bin install-man
+.PHONY: all test install clean
