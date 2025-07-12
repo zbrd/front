@@ -54,7 +54,7 @@ endef
 all: $(BINS) $(MANS)
 
 test:
-	$(GOTEST) $(TESTFLAGS)
+	$(GOTEST) $(TESTFLAGS) ./...
 
 install: $(BINS) $(MANS)
 	$(INSTALL) -Dm755 $(BINS) $(PREFIX)/bin/
