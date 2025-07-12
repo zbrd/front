@@ -1,18 +1,16 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"iter"
 	"os"
 
 	_ "embed"
 
 	"github.com/goccy/go-yaml"
 	flag "github.com/spf13/pflag"
+	"github.com/zbrd/front"
 	"github.com/zbrd/usage"
 )
 
@@ -33,9 +31,6 @@ var (
 		"Contact": "zbrd@duck.com",
 		"Version": version,
 	}
-
-	matterDelim = []byte("---\n")
-	matterMark  = matterDelim[0:3]
 )
 
 //go:embed usage.txt
@@ -145,80 +140,6 @@ func exit(op string, err error) {
 	os.Exit(1)
 }
 
-func splitMatter(r io.Reader) ([]byte, []byte, error) {
-	var (
-		matter, content []byte
-		buff            = bufio.NewReader(r)
-		magic, front    = readMagic(buff)
-	)
-
-	if front {
-		// file contains valid frontmatter,
-		// read it and store in split.matter
-		for line := range matterLines(buff) {
-			matter = append(matter, line...)
-		}
-	} else {
-		// file has no valid frontmatter,
-		// re-consume assumed 'magic' bytes into split.content
-		content = append(content, magic...)
-	}
-
-	// read the rest of the file into split.content
-	all, err := io.ReadAll(buff)
-	content = append(content, all...)
-	return matter, content, err
-}
-
-func readMagic(b *bufio.Reader) ([]byte, bool) {
-	var (
-		n   int
-		err error
-	)
-
-	magic := make([]byte, len(matterDelim))
-
-	if n, err = io.ReadFull(b, magic); err != nil {
-		switch err {
-		case io.ErrUnexpectedEOF:
-			// file ended before reading len(magic) bytes,
-			// meaning file *definitely* has no frontmatter
-			return magic[0:n], false
-		case io.EOF:
-			// file is empty
-			return nil, false
-		default:
-			// unexpected error type
-			// TODO: panic? return error?
-			return nil, false
-		}
-	} else {
-		// we read exactly len(magic) bytes,
-		// file *might* start with magic string
-		fmm := magic[0:max(0, n-1)] // n-1: remove '\n'
-		return magic[0:n], bytes.Equal(fmm, matterMark)
-	}
-}
-
-func matterLines(b *bufio.Reader) iter.Seq[[]byte] {
-	return func(yield func([]byte) bool) {
-		for {
-			line, err := b.ReadBytes('\n')
-
-			if bytes.Equal(line, matterMark) ||
-				bytes.Equal(line, matterDelim) {
-				return
-			}
-			if !yield(line) {
-				return
-			}
-			if err != nil {
-				return
-			}
-		}
-	}
-}
-
 func parseFront(path string, in io.Reader, out io.Writer) error {
 	var (
 		err  error
@@ -228,7 +149,7 @@ func parseFront(path string, in io.Reader, out io.Writer) error {
 
 	op.Path = path
 
-	if m, c, err = splitMatter(in); err != nil {
+	if m, c, err = front.Split(in); err != nil {
 		return fmt.Errorf("Error splitting frontmatter: %w", err)
 	} else if op.Meta, err = parseYAML(m); err != nil {
 		return fmt.Errorf("Error parsing YAML: %w", err)
