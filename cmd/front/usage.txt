@@ -1,16 +1,16 @@
-Parses frontmatter from a source text file.
+Usage: %[1]s [OPTIONS] [INPUT]
 
-Usage: {{.Name}} [-o OUTPUT] [INPUT]
+Extract and convert YAML frontmatter from text file
+INPUT. Outputs a new JSON object `output`:
 
-Parses any YAML frontmatter from INPUT file, converts it
-to JSON and outputs it to OUTPUT. Adds the JSON property
-"content", which contains the actual non-frontmatter
-content from INPUT; and "path", which contains the path
-to the input file ("-" if stdin)
+  output = {
+    "path": "-",   // INPUT file path
+    "meta": null,  // frontmatter data
+    "content": ""  // text content
+  }
 
-If either INPUT or OUTPUT is omitted, or if either of
-them is "-", reads from standard input and output.
+INPUT defaults to "-", stdout.
 
 Options:
-{{.Usage}}
-Report bugs to <{{.Contact}}>.
+%[2]s
+Report bugs to <zbrd@duck.com>

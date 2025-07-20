@@ -5,19 +5,25 @@
 ## Usage
 
 ```
-Usage: front [-o OUTPUT] [INPUT]
+Usage: front [OPTIONS] [INPUT]
 
-Parses any YAML frontmatter from INPUT file, converts it
-to JSON and outputs it to OUTPUT. Adds the JSON property
-"content", which contains the actual non-frontmatter
-content from INPUT; and "path", which contains the path
-to the input file ("-" if stdin)
+Extract and convert YAML frontmatter from text file
+INPUT. Outputs a new JSON object `output`:
 
-If either INPUT or OUTPUT is omitted, or if either of
-them is "-", reads from standard input and output.
+  output = {
+    "path": "-",   // INPUT file path
+    "meta": null,  // frontmatter data
+    "content": ""  // text content
+  }
+
+INPUT defaults to "-", stdout.
 
 Options:
-  -o, --out PATH   Output file PATH (default "-")
+  -d, --delim DELIM   Set frontmatter delimiter
+                      to DELIM (default "---")
+  -h, --help          Show help
+  -o, --out FILE      Output to FILE (default "-")
+  -v, --version       Show version
 ```
 
 ## Example

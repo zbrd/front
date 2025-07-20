@@ -1,0 +1,24 @@
+stdin input.md
+exec front -o output.json input.md
+grep '"path":"input.md"' output.json
+grep '"content":"Content\\n"' output.json
+grep '"meta":{"title":"t"}' output.json
+rm output.json
+
+stdin delim.md
+exec front -d '+++' -o output.json delim.md
+grep '"path":"delim.md"' output.json
+grep '"content":"Content\\n"' output.json
+grep '"meta":{"title":"t"}' output.json
+rm output.json
+
+-- input.md --
+---
+title: t
+---
+Content
+-- delim.md --
++++
+title: t
++++
+Content

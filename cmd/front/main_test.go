@@ -1,47 +1,19 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"reflect"
 	"testing"
 
-	_ "embed"
+	"github.com/rogpeppe/go-internal/testscript"
 )
 
-//go:embed example/hello.md
-var testInput []byte
+func TestMain(m *testing.M) {
+	testscript.Main(m, map[string]func(){
+		"front": main,
+	})
+}
 
-//go:embed example/hello.json
-var testOutput []byte
-
-func TestParseFront(t *testing.T) {
-	var (
-		in  = bytes.NewReader(testInput)
-		out bytes.Buffer
-	)
-
-	err := parseFront("example/hello.md", in, &out)
-
-	if err != nil {
-		t.Errorf("err != nil: %s", err)
-	}
-
-	var expect, got map[string]any
-
-	if err := json.Unmarshal(testOutput, &expect); err != nil {
-		panic(err)
-	}
-
-	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
-		panic(err)
-	}
-
-	if !reflect.DeepEqual(expect, got) {
-		t.Errorf(
-			"output not equal: %#v != %#v",
-			expect,
-			got,
-		)
-	}
+func TestRunProgram(t *testing.T) {
+	testscript.Run(t, testscript.Params{
+		Dir: "tests",
+	})
 }

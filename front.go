@@ -4,106 +4,135 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"iter"
+	"os"
+	"strings"
 )
 
-const DefaultMarker = "---"
-
-var DefaultSplitter = NewSplitter()
-
 type Splitter struct {
-	marker, delim []byte
+	Delim string
 }
 
-func NewSplitter() Splitter {
-	return NewSplitterMark(DefaultMarker)
-}
-
-func NewSplitterMark(m string) Splitter {
-	if n := len(m) - 1; m[n] == '\n' {
-		m = m[0:n]
-	}
-	return Splitter{
-		[]byte(m),
-		[]byte(m + "\n"),
-	}
-}
-
-func (s Splitter) Split(r io.Reader) ([]byte, []byte, error) {
-	var (
-		matter, content []byte
-		b               = bufio.NewReader(r)
-		magic, front    = s.readMagic(b)
-	)
-
-	if front {
-		// file contains valid frontmatter
-		for line := range s.readLines(b) {
-			matter = append(matter, line...)
-		}
+func (s Splitter) SplitFile(file string) ([]byte, []byte, error) {
+	if r, err := os.Open(file); err != nil {
+		return nil, nil, err
 	} else {
-		// file has no valid frontmatter,
-		// re-consume assumed 'magic' bytes into split.content
-		content = append(content, magic...)
+		return splitFront(r, s.Delim)
+	}
+}
+
+func (s Splitter) SplitBytes(b []byte) ([]byte, []byte, error) {
+	return splitFront(bytes.NewReader(b), s.Delim)
+}
+
+func (s Splitter) SplitReader(r io.Reader) ([]byte, []byte, error) {
+	return splitFront(r, s.Delim)
+}
+
+//
+
+var Default = Splitter{"---"}
+
+func SplitFile(file string) ([]byte, []byte, error) {
+	return Default.SplitFile(file)
+}
+
+func SplitBytes(b []byte) ([]byte, []byte, error) {
+	return Default.SplitBytes(b)
+}
+
+func SplitReader(r io.Reader) ([]byte, []byte, error) {
+	return Default.SplitReader(r)
+}
+
+//
+
+type statefn func(state) (state, statefn, error)
+
+type state struct {
+	rd      *bufio.Reader
+	delim   []byte
+	delimln []byte
+	meta    []byte
+	content []byte
+}
+
+func splitFront(r io.Reader, delim string) ([]byte, []byte, error) {
+	var err error
+
+	s := state{
+		rd:      bufio.NewReader(r),
+		delim:   []byte(removeNewLine(delim)),
+		delimln: []byte(addNewLine(delim)),
 	}
 
-	// read the rest of the file
-	all, err := io.ReadAll(b)
-	content = append(content, all...)
-	return matter, content, err
-}
-
-func Split(r io.Reader) ([]byte, []byte, error) {
-	return DefaultSplitter.Split(r)
-}
-
-func (s Splitter) readMagic(r io.Reader) ([]byte, bool) {
-	var (
-		n   int
-		err error
-	)
-
-	magic := make([]byte, len(s.delim))
-
-	if n, err = io.ReadFull(r, magic); err != nil {
-		switch err {
-		case io.ErrUnexpectedEOF:
-			// file ended before reading len(magic) bytes,
-			// meaning file *definitely* has no frontmatter
-			return magic[0:n], false
-		case io.EOF:
-			// file is empty
-			return nil, false
-		default:
-			// unexpected error type
-			// TODO: panic? return error?
-			return nil, false
+	for fn := startState; ; {
+		if s, fn, err = fn(s); err != nil || fn == nil {
+			break
 		}
+	}
+
+	return s.meta, s.content, ignoreEOF(err)
+}
+
+func startState(s state) (state, statefn, error) {
+	line, err := s.rd.ReadBytes('\n')
+
+	if equalAny(line, s.delim, s.delimln) {
+		return s, metaState, err
 	} else {
-		// we read exactly len(magic) bytes,
-		// file *might* start with magic string
-		fmm := magic[0:max(0, n-1)] // n-1: remove '\n'
-		return magic[0:n], bytes.Equal(fmm, s.marker)
+		s.content = line
+		return s, contentState, err
 	}
 }
 
-func (s Splitter) readLines(r io.Reader) iter.Seq[[]byte] {
-	return func(yield func([]byte) bool) {
-		b := bufio.NewReader(r)
+func metaState(s state) (state, statefn, error) {
+	line, err := s.rd.ReadBytes('\n')
 
-		for {
-			line, err := b.ReadBytes('\n')
+	if equalAny(line, s.delim, s.delimln) {
+		return s, contentState, err
+	} else {
+		s.meta = append(s.meta, line...)
+		return s, metaState, err
+	}
+}
 
-			if bytes.Equal(line, s.marker) ||
-				bytes.Equal(line, s.delim) {
-				return
-			}
-			if !yield(line) {
-				return
-			}
-			if err != nil {
-				return
-			}
+func contentState(s state) (state, statefn, error) {
+	all, err := io.ReadAll(s.rd)
+	s.content = append(s.content, all...)
+	return s, nil, err
+}
+
+//
+
+func addNewLine(s string) string {
+	if !strings.HasSuffix(s, "\n") {
+		return s + "\n"
+	} else {
+		return s
+	}
+}
+
+func removeNewLine(s string) string {
+	if strings.HasSuffix(s, "\n") {
+		return s[1 : len(s)-1]
+	} else {
+		return s
+	}
+}
+
+func ignoreEOF(err error) error {
+	if err == io.EOF {
+		return nil
+	} else {
+		return err
+	}
+}
+
+func equalAny(b []byte, bs ...[]byte) bool {
+	for _, s := range bs {
+		if bytes.Equal(b, s) {
+			return true
 		}
 	}
+	return false
 }

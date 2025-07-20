@@ -1,57 +1,84 @@
 package front
 
 import (
-	"fmt"
-	"strings"
+	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestSplitMatter(t *testing.T) {
+type result struct {
+	meta, content string
+}
+
+func TestSplitReader(t *testing.T) {
 	tests := []struct {
-		input   string
-		matter  string
-		content string
+		name   string
+		input  string
+		expect result
 	}{
-		// invalid magic
-		{"", "", ""},
-		{"-", "", "-"},
-		{"--", "", "--"},
-		{"---", "", "---"},
-
-		// valid magic, empty
-		{"---\n", "", ""},
-		{"---\n---", "", ""},
-		{"---\n---\n", "", ""},
-
-		// no frontmatter end
-		{"---\nL1\nL2", "L1\nL2", ""},
-		{"---\nL1\nL2\n", "L1\nL2\n", ""},
-
-		// frontmatter, no content
-		{"---\nL1\nL2\nL3\n---", "L1\nL2\nL3\n", ""},
-		{"---\nL1\nL2\nL3\n---\n", "L1\nL2\nL3\n", ""},
-
-		// frontmatter, with content
-		{"---\nL1\nL2\nL3\n---\nDATA", "L1\nL2\nL3\n", "DATA"},
-		{"---\nL1\nL2\nL3\n---\nDATA\n", "L1\nL2\nL3\n", "DATA\n"},
+		{
+			name:   "empty",
+			input:  "",
+			expect: result{},
+		},
+		{
+			name:   "delim_only",
+			input:  "---",
+			expect: result{},
+		},
+		{
+			name:   "delim_only_eol",
+			input:  "---\n",
+			expect: result{},
+		},
+		{
+			name:  "content_only",
+			input: "content",
+			expect: result{
+				content: "content",
+			},
+		},
+		{
+			name:  "meta_only",
+			input: "---\nmeta\n---",
+			expect: result{
+				meta: "meta\n",
+			},
+		},
+		{
+			name:  "meta_only_eol",
+			input: "---\nmeta\n---\n",
+			expect: result{
+				meta: "meta\n",
+			},
+		},
+		{
+			name:  "meta_content",
+			input: "---\nmeta\n---\ncontent",
+			expect: result{
+				meta:    "meta\n",
+				content: "content",
+			},
+		},
+		{
+			name:  "meta_content_eol",
+			input: "---\nmeta\n---\ncontent\n",
+			expect: result{
+				meta:    "meta\n",
+				content: "content\n",
+			},
+		},
 	}
 
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("Test_%d", i), func(t *testing.T) {
-			r := strings.NewReader(tt.input)
-			m, c, err := Split(r)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := bytes.NewReader([]byte(tt.input))
+			m, c, err := Default.SplitReader(b)
 
-			if err != nil {
-				t.Errorf("err != nil: %#v", err)
-			}
-
-			if sm := string(m); sm != tt.matter {
-				t.Errorf("matter != %#v: %#v", tt.matter, sm)
-			}
-
-			if sm := string(c); sm != tt.content {
-				t.Errorf("content != %#v: %#v", tt.content, sm)
-			}
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expect.meta, string(m))
+			assert.Equal(t, tt.expect.content, string(c))
 		})
 	}
 }
